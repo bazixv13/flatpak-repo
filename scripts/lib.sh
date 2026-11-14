@@ -57,7 +57,45 @@ require_gpg_key() {
   export GPG_HOMEDIR GPG_KEY_ID
 }
 
-# Sign every app commit in $REPO_DIR and re-sign the summary.
+# Sign the appstream refs in $REPO_DIR.
+#
+# `flatpak build-sign` refuses these names ("Names must contain at least 2
+# periods"), so re-commit each appstream branch with ostree and a signature.
+# This has to happen after build-update-repo, which regenerates the appstream
+# branch unsigned whenever the appstream data changes. An unsigned appstream
+# commit makes `flatpak update --appstream` fail, so app stores such as Bazaar
+# cannot list the apps.
+sign_appstream() {
+  local repo="${1:-$REPO_DIR}"
+  require_gpg_key
+  local name ref old ts new
+  for name in appstream appstream2; do
+    ref="$repo/refs/heads/$name/$ARCH"
+    [[ -f "$ref" ]] || continue
+    old="$(cat "$ref")"
+    ts="$(ostree --repo="$repo" show "$old" 2>/dev/null \
+      | awk '/^Date:/{print $2" "$3" "$4}')"
+    [[ -n "$ts" ]] || { echo "Could not read date of $name/$ARCH" >&2; exit 1; }
+    if ! new="$(ostree --repo="$repo" commit --branch="$name/$ARCH" \
+        --tree=ref="$old" --parent=none \
+        --add-metadata-string="ostree.ref-binding=$name/$ARCH" \
+        --subject="Update" \
+        --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
+        --timestamp="$ts")"; then
+      echo "Failed to sign $name/$ARCH" >&2
+      exit 1
+    fi
+    # only write the ref once the commit actually succeeded
+    printf '%s\n' "$new" > "$ref"
+    echo ">> Signed $name/$ARCH ($new)"
+  done
+}
+
+# Sign every app commit in $REPO_DIR, the appstream branches, and the summary.
+#
+# Order matters: build-update-repo regenerates the appstream branch, so the
+# appstream commits are signed afterwards and the summary is refreshed last so
+# it advertises the signed commits.
 sign_repo() {
   local repo="${1:-$REPO_DIR}"
   require_gpg_key
@@ -70,6 +108,10 @@ sign_repo() {
         "$repo" "$id" "$branch"
     done < <(find "$repo/refs/heads/app" -type f)
   fi
+  flatpak build-update-repo --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
+    --title="bazixv13 Apps" --comment="Flatpak repository for bazixv13's apps" "$repo"
+  sign_appstream "$repo"
+  # refresh the summary so it points at the signed appstream commits
   flatpak build-update-repo --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
     --title="bazixv13 Apps" --comment="Flatpak repository for bazixv13's apps" "$repo"
 }
