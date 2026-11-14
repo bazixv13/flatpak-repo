@@ -25,8 +25,8 @@ echo ">> Removing refs for $APP_ID ..."
 find "$APP_REF_DIR" -type f -delete
 find "$REPO_DIR/refs/heads/app" -mindepth 1 -type d -empty -delete 2>/dev/null || true
 
-echo ">> Refreshing repository metadata ..."
-flatpak build-update-repo "$REPO_DIR"
+echo ">> Signing and refreshing repository metadata ..."
+sign_repo "$REPO_DIR"
 
 echo
 echo "Removed $APP_ID from the local repo."
