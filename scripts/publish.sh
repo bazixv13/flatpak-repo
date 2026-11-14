@@ -41,4 +41,4 @@ fi
 git commit --quiet -m "Update Flatpak repo ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
 git push --quiet origin gh-pages
 
-echo ">> Published: https://bazixv13.github.io/hideaway-flatpak/"
+echo ">> Published: https://bazixv13.github.io/flatpak-repo/"

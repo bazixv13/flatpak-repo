@@ -11,7 +11,7 @@ ARCH="${ARCH:-$(flatpak --default-arch)}"
 # Print the git remote URL of this repository (falls back to the canonical URL).
 origin_url() {
   git -C "$ROOT" remote get-url origin 2>/dev/null \
-    || echo "https://github.com/bazixv13/hideaway-flatpak.git"
+    || echo "https://github.com/bazixv13/flatpak-repo.git"
 }
 
 # Fail early when a required executable is missing.
