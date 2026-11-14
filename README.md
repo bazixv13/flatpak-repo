@@ -1,28 +1,27 @@
-# Hideaway Flatpak repository
+# bazixv13 Apps — Flatpak repository
 
 A single Flatpak remote that hosts [Hideaway](https://github.com/bazixv13/hideaway)
 and other apps by [@bazixv13](https://github.com/bazixv13).
 
-Published at **https://bazixv13.github.io/hideaway-flatpak/**
+Published at **https://bazixv13.github.io/flatpak-repo/**
 (GitHub Pages, `gh-pages` branch).
 
 ## Add the remote
 
 ```bash
-flatpak remote-add --if-not-exists --from hideaway \
-  https://bazixv13.github.io/hideaway-flatpak/flatpakrepo
+flatpak remote-add --if-not-exists --from https://bazixv13.github.io/flatpak-repo/flatpakrepo bazixv13-apps
 ```
 
 Then install any app it provides:
 
 ```bash
-flatpak install hideaway io.github.bazixv13.Hideaway
+flatpak install bazixv13-apps io.github.bazixv13.Hideaway
 ```
 
 List what is available:
 
 ```bash
-flatpak remote-ls hideaway
+flatpak remote-ls bazixv13-apps
 ```
 
 ## Repository layout

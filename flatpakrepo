@@ -1,7 +1,7 @@
 [Flatpak Repo]
-Title=Hideaway Flatpak
-Url=https://bazixv13.github.io/hideaway-flatpak/
-Homepage=https://github.com/bazixv13/hideaway-flatpak
-Comment=Flatpak repository for Hideaway and other apps
-Description=Flatpak repository for Hideaway and other apps
-Icon=https://bazixv13.github.io/hideaway-flatpak/logo.svg
+Title=bazixv13 Apps
+Url=https://bazixv13.github.io/flatpak-repo/
+Homepage=https://github.com/bazixv13/flatpak-repo
+Comment=Flatpak repository for bazixv13's apps
+Description=Flatpak repository for bazixv13's apps (Hideaway and more)
+Icon=https://bazixv13.github.io/flatpak-repo/logo.svg

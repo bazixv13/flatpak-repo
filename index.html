@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Hideaway Flatpak Repository</title>
+  <title>bazixv13 Apps — Flatpak Repository</title>
   <meta name="description" content="A single Flatpak remote hosting Hideaway and other apps.">
   <style>
     :root { color-scheme: dark; }
@@ -49,27 +49,26 @@
     <header>
       <img src="logo.svg" alt="">
       <div>
-        <h1>Hideaway Flatpak</h1>
+        <h1>bazixv13 Apps</h1>
         <p class="sub">One remote for Hideaway and the rest of your apps.</p>
       </div>
     </header>
 
     <h2>Add the remote</h2>
-    <pre><code>flatpak remote-add --if-not-exists --from hideaway \
-  https://bazixv13.github.io/hideaway-flatpak/flatpakrepo</code></pre>
+    <pre><code>flatpak remote-add --if-not-exists --from https://bazixv13.github.io/flatpak-repo/flatpakrepo bazixv13-apps</code></pre>
 
     <h2>Install an app</h2>
-    <pre><code>flatpak install hideaway io.github.bazixv13.Hideaway</code></pre>
+    <pre><code>flatpak install bazixv13-apps io.github.bazixv13.Hideaway</code></pre>
 
     <h2>What's available</h2>
     <ul>
       <li><strong>Hideaway</strong> — <code>io.github.bazixv13.Hideaway</code> (branch <code>master</code>)</li>
     </ul>
-    <p class="hint">Full list: <code>flatpak remote-ls hideaway</code></p>
+    <p class="hint">Full list: <code>flatpak remote-ls bazixv13-apps</code></p>
 
     <h2>Links</h2>
     <ul>
-      <li>Source and tooling: <a href="https://github.com/bazixv13/hideaway-flatpak">bazixv13/hideaway-flatpak</a></li>
+      <li>Source and tooling: <a href="https://github.com/bazixv13/flatpak-repo">bazixv13/flatpak-repo</a></li>
       <li>App source: <a href="https://github.com/bazixv13/hideaway">bazixv13/hideaway</a></li>
     </ul>
   </main>

@@ -1,4 +1,4 @@
-# AGENTS.md — Hideaway Flatpak repository
+# AGENTS.md — bazixv13 Apps Flatpak repository
 
 This repository publishes a **single Flatpak remote** for Hideaway and the
 maintainer's other apps. Read this before changing anything.
@@ -45,8 +45,8 @@ maintainer's other apps. Read this before changing anything.
 
    ```bash
    ./scripts/list-apps.sh
-   curl -fsSL https://bazixv13.github.io/hideaway-flatpak/flatpakrepo
-   flatpak --user remote-ls hideaway    # after adding the remote
+   curl -fsSL https://bazixv13.github.io/flatpak-repo/flatpakrepo
+   flatpak --user remote-ls bazixv13-apps   # after adding the remote
    ```
 
 ## Remove an app
@@ -64,7 +64,7 @@ until `ostree --repo=repo prune --refs-only`.
 
 `publish.sh` clones `gh-pages`, rsyncs the local `repo/` over it (preserving
 `flatpakrepo` and `.nojekyll`), commits, and pushes. GitHub Pages then serves
-the new repo at `https://bazixv13.github.io/hideaway-flatpak/`.
+the new repo at `https://bazixv13.github.io/flatpak-repo/`.
 
 ## Troubleshooting
 
@@ -72,7 +72,7 @@ the new repo at `https://bazixv13.github.io/hideaway-flatpak/`.
   `flatpak --user ...` for user installs, or `sudo -A` for system installs
   (follow the workspace AGENTS.md sudo/askpass rule).
 - `remote-ls` is empty: confirm `summary` exists on `gh-pages` and the Pages
-  build succeeded (`gh api /repos/bazixv13/hideaway-flatpak/pages`).
+  build succeeded (`gh api /repos/bazixv13/flatpak-repo/pages`).
 - A 404 on the site root is expected; test `/flatpakrepo` instead.
 - Build failures usually mean the SDK/runtime version in the manifest is not on
   Flathub. Adjust `runtime-version`/`sdk` and retry.
