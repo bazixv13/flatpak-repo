@@ -9,7 +9,7 @@ Published at **https://bazixv13.github.io/flatpak-repo/**
 ## Add the remote
 
 ```bash
-flatpak remote-add --if-not-exists --from https://bazixv13.github.io/flatpak-repo/flatpakrepo bazixv13-apps
+flatpak remote-add --if-not-exists --from bazixv13-apps https://bazixv13.github.io/flatpak-repo/flatpakrepo
 ```
 
 Then install any app it provides:

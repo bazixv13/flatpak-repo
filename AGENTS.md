@@ -63,16 +63,29 @@ until `ostree --repo=repo prune --refs-only`.
 ## How publishing works
 
 `publish.sh` clones `gh-pages`, rsyncs the local `repo/` over it (preserving
-`flatpakrepo` and `.nojekyll`), commits, and pushes. GitHub Pages then serves
-the new repo at `https://bazixv13.github.io/flatpak-repo/`.
+`flatpakrepo`, `.nojekyll`, `index.html` and `logo.svg`), commits, and pushes.
+GitHub Pages then serves the new repo at
+`https://bazixv13.github.io/flatpak-repo/`.
+
+The remote name is **`bazixv13-apps`**:
+
+```bash
+flatpak remote-add --if-not-exists --from bazixv13-apps \
+  https://bazixv13.github.io/flatpak-repo/flatpakrepo
+```
+
+(Note the argument order: `--from <remote-name> <flatpakrepo-url>`.)
 
 ## Troubleshooting
 
 - `Flatpak system operation ConfigureRemote not allowed for user`: use
   `flatpak --user ...` for user installs, or `sudo -A` for system installs
   (follow the workspace AGENTS.md sudo/askpass rule).
+- `Can't load file <name>`: the `--from` arguments are swapped; the remote name
+  comes first, the flatpakrepo URL second.
 - `remote-ls` is empty: confirm `summary` exists on `gh-pages` and the Pages
   build succeeded (`gh api /repos/bazixv13/flatpak-repo/pages`).
-- A 404 on the site root is expected; test `/flatpakrepo` instead.
+- After a repo rename the Pages URL changes; old `flatpakrepo` URLs 404 until
+  remotes are re-added.
 - Build failures usually mean the SDK/runtime version in the manifest is not on
   Flathub. Adjust `runtime-version`/`sdk` and retry.
