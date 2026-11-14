@@ -35,3 +35,41 @@ value = data.get(field, default)
 print(value if value is not None else default)
 PY
 }
+
+# --- GPG signing ---------------------------------------------------------
+# The repository is GPG-signed so `flatpak install` works at system scope.
+# An unsigned remote is added with no-gpg-verify, and Flatpak then refuses to
+# pull it as root ("Can't pull from untrusted non-gpg verified remote").
+GPG_KEY_ID="${GPG_KEY_ID:-}"
+GPG_HOMEDIR="${GPG_HOMEDIR:-$HOME/.config/flatpak-repo-gpg}"
+
+# Print the signing key id, or fail with a useful message.
+require_gpg_key() {
+  if [[ -z "$GPG_KEY_ID" ]]; then
+    GPG_KEY_ID="$(gpg --homedir "$GPG_HOMEDIR" --list-secret-keys --with-colons 2>/dev/null \
+      | awk -F: '/^fpr:/ {print $10; exit}')"
+  fi
+  [[ -n "$GPG_KEY_ID" ]] || {
+    echo "No GPG signing key found in $GPG_HOMEDIR." >&2
+    echo "Create one with: ./scripts/init-signing-key.sh" >&2
+    exit 1
+  }
+  export GPG_HOMEDIR GPG_KEY_ID
+}
+
+# Sign every app commit in $REPO_DIR and re-sign the summary.
+sign_repo() {
+  local repo="${1:-$REPO_DIR}"
+  require_gpg_key
+  if [[ -d "$repo/refs/heads/app" ]]; then
+    while IFS= read -r ref; do
+      local rel="${ref#"$repo"/refs/heads/}"
+      local id="${rel#app/}"; id="${id%%/*}"
+      local branch="${rel##*/}"
+      flatpak build-sign --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
+        "$repo" "$id" "$branch"
+    done < <(find "$repo/refs/heads/app" -type f)
+  fi
+  flatpak build-update-repo --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
+    --title="bazixv13 Apps" --comment="Flatpak repository for bazixv13's apps" "$repo"
+}

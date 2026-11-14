@@ -31,8 +31,8 @@ flatpak-builder --force-clean \
   --arch="$ARCH" \
   "$BUILD_DIR/$APP_ID" "$MANIFEST"
 
-echo ">> Refreshing repository metadata ..."
-flatpak build-update-repo "$REPO_DIR"
+echo ">> Signing and refreshing repository metadata ..."
+sign_repo "$REPO_DIR"
 
 echo
 echo "Added $APP_ID to the local repo."
