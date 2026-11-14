@@ -15,8 +15,20 @@ maintainer's other apps. Read this before changing anything.
   `gh-pages`. `flatpakrepo` and `.nojekyll` are required for the remote to work;
   `index.html` and `logo.svg` are the landing page and the icon referenced by
   `flatpakrepo`. `publish.sh` copies all four back after syncing.
-- The repo is unsigned. Do not add a `GPGKey` unless the user explicitly asks
-  for signing.
+- The repo IS GPG-signed, and it must stay that way. `flatpakrepo` carries a
+  `GPGKey=` field; without it Flatpak registers the remote `no-gpg-verify` and
+  every **system-scope** install fails with
+  `Can't pull from untrusted non-gpg verified remote`.
+- Signing covers four commits, not just the summary: each app commit, the
+  `appstream/x86_64` and `appstream2/x86_64` commits, and the summary itself.
+  An unsigned appstream commit makes `flatpak update --appstream` fail, which
+  is why Bazaar cannot list the apps.
+- Never hand-edit `flatpakrepo`. Regenerate it with
+  `scripts/make-flatpakrepo.sh` so `GPGKey=` always matches the signing key.
+- The signing key lives in `$GPG_HOMEDIR` (default
+  `~/.config/flatpak-repo-gpg`) and is never committed. Only the public key
+  (`repo-key.asc`) and the base64 copy inside `flatpakrepo` are published.
+  Recreate it with `scripts/init-signing-key.sh`.
 - Do not touch the `gh-pages` branch of the separate `hideaway` repo (the old
   Pages deployment stays in place for now).
 

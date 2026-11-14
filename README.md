@@ -82,8 +82,19 @@ git-ignored.
 
 ## Notes
 
-- The repo is **unsigned**, so Flatpak adds it with GPG verification disabled
-  automatically (the descriptor has no `GPGKey`).
+- The repo is **GPG-signed**. `flatpakrepo` embeds the public key as `GPGKey=`,
+  so Flatpak adds the remote with verification ON. This matters: an unsigned
+  remote is registered `no-gpg-verify`, and Flatpak then refuses to pull it as
+  root (`Can't pull from untrusted non-gpg verified remote`), so system-scope
+  installs break.
+- Signing covers the app commits, the `appstream`/`appstream2` commits and the
+  summary. The appstream commits matter for discovery: if they are unsigned,
+  `flatpak update --appstream` fails and app stores such as Bazaar cannot list
+  the apps.
+- The signing key is local (`~/.config/flatpak-repo-gpg`) and never committed.
+  Only the public key (`repo-key.asc`) and the base64 copy in `flatpakrepo` are
+  published. `scripts/init-signing-key.sh` creates it;
+  `scripts/make-flatpakrepo.sh` regenerates the descriptor.
 - GitHub Pages must serve the `flatpakrepo` file and the OSTree objects; the
   `.nojekyll` file is required because Jekyll would otherwise hide dotfiles.
 - The site root serves the landing page (`index.html`); the `flatpakrepo` file
