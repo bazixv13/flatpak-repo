@@ -22,11 +22,14 @@ rsync -a --delete \
   --exclude '.git' \
   --exclude 'flatpakrepo' \
   --exclude '.nojekyll' \
+  --exclude 'index.html' \
+  --exclude 'logo.svg' \
   "$REPO_DIR/" "$TMP/pages/"
 
-# Keep the repo-level helper files at the site root.
-cp "$ROOT/flatpakrepo" "$TMP/pages/flatpakrepo"
-cp "$ROOT/.nojekyll" "$TMP/pages/.nojekyll"
+# Keep the site-level files at the root.
+for site_file in flatpakrepo .nojekyll index.html logo.svg; do
+  [[ -e "$ROOT/$site_file" ]] && cp "$ROOT/$site_file" "$TMP/pages/$site_file"
+done
 
 cd "$TMP/pages"
 git add -A
