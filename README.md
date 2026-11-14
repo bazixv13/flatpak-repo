@@ -41,6 +41,8 @@ scripts/
   list-apps.sh         List apps in ./repo
   publish.sh           Push ./repo to gh-pages
 flatpakrepo            Remote descriptor served at the site root
+index.html             Landing page with the add-remote instructions
+logo.svg               Repo icon referenced by flatpakrepo
 .nojekyll              Lets GitHub Pages serve files without index.html
 ```
 
@@ -84,6 +86,6 @@ git-ignored.
 - The repo is **unsigned**, so Flatpak adds it with GPG verification disabled
   automatically (the descriptor has no `GPGKey`).
 - GitHub Pages must serve the `flatpakrepo` file and the OSTree objects; the
-  `.nojekyll` file is required because the site has no `index.html`.
-- The bare site root (`https://bazixv13.github.io/hideaway-flatpak/`) returns
-  404 on purpose; use the `flatpakrepo` URL above.
+  `.nojekyll` file is required because Jekyll would otherwise hide dotfiles.
+- The site root serves the landing page (`index.html`); the `flatpakrepo` file
+  is what `flatpak remote-add --from` downloads.

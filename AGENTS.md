@@ -11,8 +11,10 @@ maintainer's other apps. Read this before changing anything.
   OSTree blobs on `main`.
 - The app manifest list is the source of truth: one JSON file per app in
   `apps/`.
-- Keep `.nojekyll` and `flatpakrepo` at the root of `gh-pages`. Without
-  `.nojekyll`, GitHub Pages will not serve the OSTree files.
+- Keep `.nojekyll`, `flatpakrepo`, `index.html` and `logo.svg` at the root of
+  `gh-pages`. `flatpakrepo` and `.nojekyll` are required for the remote to work;
+  `index.html` and `logo.svg` are the landing page and the icon referenced by
+  `flatpakrepo`. `publish.sh` copies all four back after syncing.
 - The repo is unsigned. Do not add a `GPGKey` unless the user explicitly asks
   for signing.
 - Do not touch the `gh-pages` branch of the separate `hideaway` repo (the old
