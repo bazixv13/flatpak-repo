@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hideaway Flatpak Repository</title>
+  <meta name="description" content="A single Flatpak remote hosting Hideaway and other apps.">
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #242424;
+      color: #f6f6f6;
+    }
+    main {
+      max-width: 42rem;
+      padding: 2.5rem 1.5rem;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    img { width: 4rem; height: 4rem; }
+    h1 { font-size: 1.75rem; margin: 0; }
+    p.sub { margin: 0.25rem 0 0; color: #b9b9b9; }
+    h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em; color: #b9b9b9; margin-top: 2rem; }
+    pre {
+      background: #1c1c1c;
+      border: 1px solid #3a3a3a;
+      border-radius: 0.6rem;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; }
+    a { color: #78aeed; }
+    ul { padding-left: 1.25rem; }
+    .hint { color: #b9b9b9; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img src="logo.svg" alt="">
+      <div>
+        <h1>Hideaway Flatpak</h1>
+        <p class="sub">One remote for Hideaway and the rest of your apps.</p>
+      </div>
+    </header>
+
+    <h2>Add the remote</h2>
+    <pre><code>flatpak remote-add --if-not-exists --from hideaway \
+  https://bazixv13.github.io/hideaway-flatpak/flatpakrepo</code></pre>
+
+    <h2>Install an app</h2>
+    <pre><code>flatpak install hideaway io.github.bazixv13.Hideaway</code></pre>
+
+    <h2>What's available</h2>
+    <ul>
+      <li><strong>Hideaway</strong> — <code>io.github.bazixv13.Hideaway</code> (branch <code>master</code>)</li>
+    </ul>
+    <p class="hint">Full list: <code>flatpak remote-ls hideaway</code></p>
+
+    <h2>Links</h2>
+    <ul>
+      <li>Source and tooling: <a href="https://github.com/bazixv13/hideaway-flatpak">bazixv13/hideaway-flatpak</a></li>
+      <li>App source: <a href="https://github.com/bazixv13/hideaway">bazixv13/hideaway</a></li>
+    </ul>
+  </main>
+</body>
+</html>
