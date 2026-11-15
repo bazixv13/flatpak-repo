@@ -100,7 +100,12 @@ jobs:
 
       - name: Update, build and publish
         if: steps.check.outputs.changed != '0' || inputs.force
-        run: ./scripts/update-all.sh
+        run: |
+          if [[ "${{ inputs.force }}" == "true" ]]; then
+            ./scripts/update-all.sh --force
+          else
+            ./scripts/update-all.sh
+          fi
 
       - name: Report
         if: always()
