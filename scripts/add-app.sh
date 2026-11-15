@@ -24,7 +24,11 @@ if [[ ! -f "$REPO_DIR/config" ]]; then
 fi
 
 echo ">> Building $APP_ID (branch: $BRANCH, arch: $ARCH) ..."
+# --install-deps-from lets flatpak-builder fetch the runtime, SDK and SDK
+# extensions a manifest names. Without it a fresh machine (or a CI runner)
+# fails with "org.gnome.Sdk/x86_64/50 not installed".
 flatpak-builder --force-clean --disable-rofiles-fuse \
+  --install-deps-from=flathub \
   --state-dir="$STATE_DIR" \
   --repo="$REPO_DIR" \
   --default-branch="$BRANCH" \
