@@ -29,9 +29,12 @@ jobs:
   update:
     name: Sync with upstream releases
     runs-on: ubuntu-24.04
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
-      options: --privileged
+    # A plain runner, not the flatpak-builder container: that image is a
+    # freedesktop SDK with no package manager, so it cannot install the
+    # tooling this job needs. Every step below is bash.
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -43,8 +46,19 @@ jobs:
 
       - name: Install tooling
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends git rsync python3 ca-certificates
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            flatpak flatpak-builder ostree rsync git python3 ca-certificates
+          flatpak --version
+          flatpak-builder --version
+
+      - name: Configure flatpak and git
+        run: |
+          # flatpak-builder installs the runtime, SDK and SDK extensions named
+          # in each manifest from here.
+          sudo flatpak remote-add --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo
+
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -66,15 +80,21 @@ jobs:
           install -d -m700 "$HOME/.config/flatpak-repo-gpg"
           printf '%s' "$FLATPAK_GPG_KEY" | base64 -d \
             | gpg --homedir "$HOME/.config/flatpak-repo-gpg" --batch --import
-          gpg --homedir "$HOME/.config/flatpak-repo-gpg" --list-secret-keys --with-colons \
-            | awk -F: '/^fpr:/ {print "GPG_KEY_ID="$10; exit}' >> "$GITHUB_ENV"
+          fingerprint="$(gpg --homedir "$HOME/.config/flatpak-repo-gpg" \
+            --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          if [[ -z "$fingerprint" ]]; then
+            echo "::error::The signing key imported but has no secret key."
+            exit 1
+          fi
+          echo "GPG_KEY_ID=$fingerprint" >> "$GITHUB_ENV"
+          echo "Signing as $fingerprint"
 
       - name: Check for upstream releases
         id: check
         run: |
           ./scripts/update_manifests.py --check | tee /tmp/check.log
-          changed=$(sed -n '/^---RESULT---$/,$p' /tmp/check.log | tail -n +2 \
-            | python3 -c 'import json,sys; print(len([r for r in json.load(sys.stdin) if r["status"]=="outdated"]))')
+          changed="$(sed -n '/^---RESULT---$/,$p' /tmp/check.log | tail -n +2 \
+            | python3 -c 'import json,sys; print(len([r for r in json.load(sys.stdin) if r["status"]=="outdated"]))')"
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
           echo "Upstream releases pending: $changed"
 
