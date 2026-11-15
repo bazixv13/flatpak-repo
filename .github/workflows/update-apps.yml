@@ -1,0 +1,90 @@
+name: Update apps
+
+# Keeps the published remote in step with each app's newest upstream release.
+#
+# Runs on a schedule, and can be started by hand. It only does work when an
+# upstream tag has actually moved, so the common case is a fast no-op.
+
+on:
+  schedule:
+    # Every six hours. Upstream releases are not urgent, and a slower cadence
+    # keeps the runner minutes and the gh-pages commit history small.
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild every app even if its upstream tag has not moved
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  # Never let two update runs race on the same gh-pages branch.
+  group: update-apps
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Sync with upstream releases
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # The publish step pushes to gh-pages and to main, so it needs the
+          # full history and a token that can write.
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install tooling
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git rsync python3 ca-certificates
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # publish.sh and sync-repo.sh clone gh-pages over plain https, which
+          # has no credentials on a runner. Rewrite github.com to an
+          # authenticated URL so those clones and pushes work.
+          git config --global \
+            url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf \
+            "https://github.com/"
+
+      - name: Restore signing key
+        env:
+          FLATPAK_GPG_KEY: ${{ secrets.FLATPAK_GPG_KEY }}
+        run: |
+          if [[ -z "${FLATPAK_GPG_KEY:-}" ]]; then
+            echo "::error::FLATPAK_GPG_KEY is not set. The repository must stay signed."
+            exit 1
+          fi
+          install -d -m700 "$HOME/.config/flatpak-repo-gpg"
+          printf '%s' "$FLATPAK_GPG_KEY" | base64 -d \
+            | gpg --homedir "$HOME/.config/flatpak-repo-gpg" --batch --import
+          gpg --homedir "$HOME/.config/flatpak-repo-gpg" --list-secret-keys --with-colons \
+            | awk -F: '/^fpr:/ {print "GPG_KEY_ID="$10; exit}' >> "$GITHUB_ENV"
+
+      - name: Check for upstream releases
+        id: check
+        run: |
+          ./scripts/update_manifests.py --check | tee /tmp/check.log
+          changed=$(sed -n '/^---RESULT---$/,$p' /tmp/check.log | tail -n +2 \
+            | python3 -c 'import json,sys; print(len([r for r in json.load(sys.stdin) if r["status"]=="outdated"]))')
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "Upstream releases pending: $changed"
+
+      - name: Update, build and publish
+        if: steps.check.outputs.changed != '0' || inputs.force
+        run: ./scripts/update-all.sh
+
+      - name: Report
+        if: always()
+        run: |
+          if [[ "${{ steps.check.outputs.changed }}" == "0" ]]; then
+            echo "Nothing to do: every app is at its newest upstream release."
+          fi

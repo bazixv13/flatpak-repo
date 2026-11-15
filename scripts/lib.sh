@@ -111,7 +111,11 @@ sign_repo() {
   flatpak build-update-repo --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
     --title="bazixv13 Apps" --comment="Flatpak repository for bazixv13's apps" "$repo"
   sign_appstream "$repo"
-  # refresh the summary so it points at the signed appstream commits
-  flatpak build-update-repo --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
+  # Refresh the summary so it advertises the signed appstream commits. This
+  # second call must NOT regenerate the appstream branch, or it would discard
+  # the signatures applied above. --no-update-appstream keeps the branches as
+  # they are and only rewrites summary/summary.sig.
+  flatpak build-update-repo --no-update-appstream \
+    --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
     --title="bazixv13 Apps" --comment="Flatpak repository for bazixv13's apps" "$repo"
 }
