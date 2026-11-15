@@ -22,10 +22,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 CHECK_ONLY=0
 DO_BUILD=1
+FORCE=0
 for arg in "$@"; do
   case "$arg" in
     --check) CHECK_ONLY=1 ;;
     --no-build) DO_BUILD=0 ;;
+    --force) FORCE=1 ;;
     -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
   esac
@@ -50,8 +52,20 @@ CHANGED="$(sed -n '/^---RESULT---$/,$p' "$UPDATE_LOG" | tail -n +2 \
   | python3 -c 'import json,sys; print("\n".join(r["app"] for r in json.load(sys.stdin) if r["status"]=="updated"))')"
 
 if [[ -z "$CHANGED" ]]; then
-  echo ">> Everything is already at its newest upstream release."
-  exit 0
+  if [[ $FORCE -eq 0 ]]; then
+    echo ">> Everything is already at its newest upstream release."
+    exit 0
+  fi
+  # --force rebuilds every app even with no upstream change, which is how a
+  # broken publish gets repaired without waiting for a new release.
+  echo ">> Forcing a rebuild of every app."
+  CHANGED="$(python3 -c '
+import json, pathlib
+for path in sorted(pathlib.Path("apps").glob("*.json")):
+    if path.name == "cargo-sources.json":
+        continue
+    print(json.loads(path.read_text())["app-id"])
+')"
 fi
 
 echo ">> Updated: $(echo "$CHANGED" | tr '\n' ' ')"
