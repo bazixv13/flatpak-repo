@@ -24,7 +24,7 @@ if [[ ! -f "$REPO_DIR/config" ]]; then
 fi
 
 echo ">> Building $APP_ID (branch: $BRANCH, arch: $ARCH) ..."
-flatpak-builder --force-clean \
+flatpak-builder --force-clean --disable-rofiles-fuse \
   --state-dir="$STATE_DIR" \
   --repo="$REPO_DIR" \
   --default-branch="$BRANCH" \
