@@ -60,8 +60,8 @@
                 "cargo-sources.json",
                 {
                     "type": "archive",
-                    "url": "https://github.com/bazixv13/localsend-adwaita/archive/refs/tags/v0.3.40.tar.gz",
-                    "sha256": "4fe99b47cb0be950d6a938709a8557c47723c0923aad3fc1446e4bc070ddad55",
+                    "url": "https://github.com/bazixv13/localsend-adwaita/archive/refs/tags/v0.3.42.tar.gz",
+                    "sha256": "4da365912b3645be5c2b878958165fb16ccac272ec98338323a46e6a535c172e",
                     "strip-components": 1
                 }
             ]
