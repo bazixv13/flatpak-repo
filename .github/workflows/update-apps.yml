@@ -48,10 +48,11 @@ jobs:
         run: |
           sudo apt-get update
           # elfutils provides eu-strip; flatpak-builder aborts each module
-          # while splitting debug info when it is missing.
+          # while splitting debug info when it is missing. librsvg2-common is
+          # the pixbuf loader appstreamcli needs to read the scalable app icon.
           sudo apt-get install -y --no-install-recommends \
             flatpak flatpak-builder ostree rsync git python3 ca-certificates \
-            elfutils
+            elfutils librsvg2-common
           flatpak --version
           flatpak-builder --version
 
