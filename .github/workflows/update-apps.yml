@@ -57,6 +57,11 @@ jobs:
           flatpak-builder --version
 
       - name: Configure flatpak and git
+        env:
+          # The rewrite below interpolates this variable, so it has to be in
+          # the step environment; ${{ secrets.GITHUB_TOKEN }} inside the shell
+          # string is not substituted.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # flatpak-builder installs the runtime, SDK and SDK extensions named
           # in each manifest from here.
