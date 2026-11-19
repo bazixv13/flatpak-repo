@@ -47,8 +47,11 @@ jobs:
       - name: Install tooling
         run: |
           sudo apt-get update
+          # elfutils provides eu-strip; flatpak-builder aborts each module
+          # while splitting debug info when it is missing.
           sudo apt-get install -y --no-install-recommends \
-            flatpak flatpak-builder ostree rsync git python3 ca-certificates
+            flatpak flatpak-builder ostree rsync git python3 ca-certificates \
+            elfutils
           flatpak --version
           flatpak-builder --version
 
@@ -57,6 +60,12 @@ jobs:
           # flatpak-builder installs the runtime, SDK and SDK extensions named
           # in each manifest from here.
           sudo flatpak remote-add --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo
+          # flatpak-builder runs with --user, so it installs the runtime and
+          # SDK into the user installation. That needs the remote in the user
+          # scope too, otherwise it fails with "Flatpak system operation
+          # Deploy not allowed for user".
+          flatpak remote-add --user --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo
 
           git config --global user.name "github-actions[bot]"
