@@ -15,13 +15,17 @@ require_gpg_key
 
 SITE_URL="${SITE_URL:-https://bazixv13.github.io/flatpak-repo/}"
 HOMEPAGE="${HOMEPAGE:-https://github.com/bazixv13/flatpak-repo}"
+# The runtime an app needs (org.gnome.Platform) lives on Flathub. Naming it
+# here means a user who never added Flathub is prompted for it instead of
+# getting "runtime not found".
+RUNTIME_REPO="${RUNTIME_REPO:-https://flathub.org/repo/flathub.flatpakrepo}"
 
 # Base64 of the binary public key, on one line, as Flatpak expects.
 KEY_B64="$(gpg --homedir "$GPG_HOMEDIR" --export "$GPG_KEY_ID" | base64 -w0)"
 
-python3 - "$ROOT/flatpakrepo" "$SITE_URL" "$HOMEPAGE" "$KEY_B64" <<'PY'
+python3 - "$ROOT/flatpakrepo" "$SITE_URL" "$HOMEPAGE" "$KEY_B64" "$RUNTIME_REPO" <<'PY'
 import sys
-path, url, homepage, key = sys.argv[1:5]
+path, url, homepage, key, runtime_repo = sys.argv[1:6]
 body = f"""[Flatpak Repo]
 Title=bazixv13 Apps
 Url={url}
@@ -29,6 +33,7 @@ Homepage={homepage}
 Comment=Flatpak repository for bazixv13's apps
 Description=Flatpak repository for bazixv13's apps (Hideaway and more)
 Icon={url}logo.svg
+RuntimeRepo={runtime_repo}
 GPGKey={key}
 """
 open(path, "w").write(body)
