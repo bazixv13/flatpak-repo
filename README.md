@@ -68,10 +68,12 @@ git-ignored.
      `"branch": "beta"` is the test channel: it follows pre-release tags
      (`0.3.53-beta`) instead of the newest release. Name its file
      `apps/<app-id>.beta.json` so both channels can coexist.
-   - Files taken from the app's own tag tree (for example
-     `raw.githubusercontent.com/<owner>/<repo>/<tag>/flatpak/cargo-sources.json`)
-     are moved to the new tag automatically, so each release builds with its
-     own dependency list.
+   - An app that vendors crates lists its dependency list as a local source
+     (`"sources": ["<name>.cargo-sources.json", ...]`). The updater downloads
+     that app's `flatpak/cargo-sources.json` from the new tag and writes it
+     beside the manifest, so each release builds with its own dependency list.
+     It has to be a local file: flatpak-builder only expands the sources from a
+     JSON file it finds on disk, not one downloaded mid-build.
 2. Sync the current published state, build and export:
 
    ```bash

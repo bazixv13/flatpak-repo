@@ -62,9 +62,10 @@ if [[ -z "$CHANGED" ]]; then
   # broken publish gets repaired without waiting for a new release.
   echo ">> Forcing a rebuild of every app."
   CHANGED="$(python3 -c '
-import json, pathlib
+import pathlib
 for path in sorted(pathlib.Path("apps").glob("*.json")):
-    if path.name == "cargo-sources.json":
+    # cargo-sources lists are inputs, not manifests to build.
+    if path.name == "cargo-sources.json" or path.name.endswith(".cargo-sources.json"):
         continue
     print(path.name)
 ')"

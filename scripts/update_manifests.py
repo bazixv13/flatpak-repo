@@ -49,11 +49,19 @@ TAG_RE = re.compile(r"^v?\d+(?:\.\d+)*$")
 # Tags for the beta channel: the same shapes with a suffix, 0.3.53-beta.
 PRERELEASE_RE = re.compile(r"^v?\d+(?:\.\d+)*-[0-9A-Za-z][0-9A-Za-z.]*$")
 
-# githubusercontent.com/<owner>/<repo>/<tag>/<path> - a file living in the
-# app's own tag tree, such as the cargo sources generated for that release.
-RAW_FILE_RE = re.compile(
-    r"^https://raw\.githubusercontent\.com/(?P<repo>[^/]+/[^/]+)/(?P<tag>[^/]+)/(?P<path>.+)$"
-)
+# Where an app repo keeps the cargo sources for a release. A manifest that
+# builds from vendored crates lists this file next to itself, because
+# flatpak-builder only splices the sources from a local JSON file; a remote
+# copy would be downloaded but never expanded.
+CARGO_SOURCES_PATH = "flatpak/cargo-sources.json"
+CARGO_SOURCES_SUFFIX = ".cargo-sources.json"
+
+
+def is_cargo_sources(path: Path) -> bool:
+    """A dependency list, not a manifest, even though it ends in .json."""
+    return path.name == "cargo-sources.json" or path.name.endswith(
+        CARGO_SOURCES_SUFFIX
+    )
 
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -177,21 +185,34 @@ def find_archive_source(manifest: dict) -> dict | None:
     return found[-1] if found else None
 
 
-def sibling_file_sources(manifest: dict, repo: str) -> list[dict]:
-    """File sources that live in the app's own tag tree, e.g. cargo sources.
+def cargo_sources_file(manifest: dict) -> str:
+    """The cargo-sources JSON a manifest lists as a local source, if it has one.
 
-    They are pinned to the same tag as the app source, so they have to move
-    with it or the build would use another release's dependency list.
+    It is pinned to the same tag as the app source, so it has to move with it
+    or the build would vendor another release's dependencies.
     """
-    found = []
     for module in manifest.get("modules", []):
         for source in module.get("sources", []):
-            if not isinstance(source, dict) or source.get("type") != "file":
-                continue
-            match = RAW_FILE_RE.match(source.get("url", ""))
-            if match and match.group("repo") == repo:
-                found.append(source)
-    return found
+            if isinstance(source, str) and source.endswith(CARGO_SOURCES_SUFFIX):
+                return source
+    return ""
+
+
+def fetch_cargo_sources(dest: Path, repo: str, tag: str) -> bool:
+    """Write the dependency list that belongs to `tag` next to the manifest."""
+    url = f"https://raw.githubusercontent.com/{repo}/{tag}/{CARGO_SOURCES_PATH}"
+    try:
+        with urllib.request.urlopen(url, timeout=180) as response:
+            data = response.read()
+        sources = json.loads(data)
+    except Exception as error:  # noqa: BLE001 - any failure means "do not use this"
+        print(f"  ! could not fetch {url}: {error}", file=sys.stderr)
+        return False
+    if not isinstance(sources, list):
+        print(f"  ! {url} is not a list of sources", file=sys.stderr)
+        return False
+    dest.write_bytes(data if data.endswith(b"\n") else data + b"\n")
+    return True
 
 
 def process(path: Path, check_only: bool) -> dict:
@@ -233,7 +254,14 @@ def process(path: Path, check_only: bool) -> dict:
             "reason": f"no {channel}tags in {repo}",
         }
 
-    if version_key(newest) <= version_key(current_tag):
+    # A manifest that vendors crates keeps its dependency list beside itself;
+    # it is only generated when the tag moves, or when it is missing.
+    cargo_name = cargo_sources_file(manifest)
+    cargo_path = path.parent / cargo_name if cargo_name else None
+    cargo_missing = cargo_path is not None and not cargo_path.exists()
+    tag_moved = version_key(newest) > version_key(current_tag)
+
+    if not tag_moved and not cargo_missing:
         return {
             "app": app_id,
             "manifest": path.name,
@@ -253,41 +281,32 @@ def process(path: Path, check_only: bool) -> dict:
             "repo": repo,
         }
 
-    if is_git:
-        # A git source is pinned by tag only; flatpak resolves the commit.
-        source["tag"] = newest
-    else:
-        digest = sha256_of(new_url)
-        if digest is None:
-            return {
-                "app": app_id,
-                "manifest": path.name,
-                "status": "skipped",
-                "reason": f"could not hash {newest}",
-                "repo": repo,
-            }
-        source["url"] = new_url
-        source["sha256"] = digest
+    if tag_moved:
+        if is_git:
+            # A git source is pinned by tag only; flatpak resolves the commit.
+            source["tag"] = newest
+        else:
+            digest = sha256_of(new_url)
+            if digest is None:
+                return {
+                    "app": app_id,
+                    "manifest": path.name,
+                    "status": "skipped",
+                    "reason": f"could not hash {newest}",
+                    "repo": repo,
+                }
+            source["url"] = new_url
+            source["sha256"] = digest
+        path.write_text(json.dumps(manifest, indent=4) + "\n")
 
-    # Files taken from the same tag tree have to move to the new tag too.
-    for sibling in sibling_file_sources(manifest, repo):
-        match = RAW_FILE_RE.match(sibling["url"])
-        sibling_url = (
-            f"https://raw.githubusercontent.com/{repo}/{newest}/{match.group('path')}"
-        )
-        sibling_digest = sha256_of(sibling_url)
-        if sibling_digest is None:
-            return {
-                "app": app_id,
-                "manifest": path.name,
-                "status": "skipped",
-                "reason": f"could not hash {sibling_url}",
-                "repo": repo,
-            }
-        sibling["url"] = sibling_url
-        sibling["sha256"] = sibling_digest
-
-    path.write_text(json.dumps(manifest, indent=4) + "\n")
+    if cargo_path is not None and not fetch_cargo_sources(cargo_path, repo, newest):
+        return {
+            "app": app_id,
+            "manifest": path.name,
+            "status": "skipped",
+            "reason": f"could not fetch cargo sources for {newest}",
+            "repo": repo,
+        }
 
     return {
         "app": app_id,
@@ -308,7 +327,7 @@ def main() -> int:
     manifests = sorted(
         path
         for path in APPS_DIR.glob("*.json")
-        if path.name != "cargo-sources.json"
+        if not is_cargo_sources(path)
     )
     if args.only:
         manifests = [
