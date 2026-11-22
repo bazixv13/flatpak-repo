@@ -62,9 +62,17 @@ require_gpg_key() {
 # `flatpak build-sign` refuses these names ("Names must contain at least 2
 # periods"), so re-commit each appstream branch with ostree and a signature.
 # This has to happen after build-update-repo, which regenerates the appstream
-# branch unsigned whenever the appstream data changes. An unsigned appstream
-# commit makes `flatpak update --appstream` fail, so app stores such as Bazaar
-# cannot list the apps.
+# branch whenever the appstream data changes. An unsigned appstream commit
+# makes `flatpak update --appstream` fail, so app stores such as Bazaar cannot
+# list the apps.
+#
+# The binding has to be an array of refs, not a string: flatpak reads
+# `ostree.ref-binding` as a string array, and its privileged appstream path
+# rejects a commit whose binding is a plain string with "Commit for
+# 'appstream2/x86_64' has no ref binding". That only shows up for system
+# installations, where the update is deployed by the system helper; pulling as
+# root directly never looks at the binding, so the bug stays invisible there.
+# `ostree commit --branch` writes the array for us.
 sign_appstream() {
   local repo="${1:-$REPO_DIR}"
   require_gpg_key
@@ -76,9 +84,9 @@ sign_appstream() {
     ts="$(ostree --repo="$repo" show "$old" 2>/dev/null \
       | awk '/^Date:/{print $2" "$3" "$4}')"
     [[ -n "$ts" ]] || { echo "Could not read date of $name/$ARCH" >&2; exit 1; }
+    # `--branch` records the ref binding, as the array flatpak expects.
     if ! new="$(ostree --repo="$repo" commit --branch="$name/$ARCH" \
         --tree=ref="$old" --parent=none \
-        --add-metadata-string="ostree.ref-binding=$name/$ARCH" \
         --subject="Update" \
         --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
         --timestamp="$ts")"; then
@@ -97,9 +105,9 @@ sign_appstream() {
 # but flatpak older than about 1.16 still writes the appstream commit it would
 # have created into the summary while not writing the commit itself, so the
 # summary advertises a commit that is not in the repository. Clients then fail
-# with "Commit for 'appstream2/x86_64' has no ref binding", and Bazaar or GNOME
-# Software cannot refresh their app list. ostree rebuilds the summary from the
-# real refs, phantom entries and all.
+# with "No such metadata object ...commit", and Bazaar or GNOME Software cannot
+# refresh their app list. ostree rebuilds the summary from the real refs,
+# phantom entries and all.
 #
 # The summary index describes the previous summary, so it is removed rather
 # than left to disagree with the new one; clients fall back to the full summary
@@ -148,7 +156,26 @@ verify_repo() {
       echo "Commit $tip for $rel is missing from the repository" >&2
       failed=1
     fi
+    # The binding must be an array containing the ref. A string binding (what
+    # `ostree commit --add-metadata-string=ostree.ref-binding=...` writes) is
+    # accepted by root but rejected by flatpak's privileged appstream deploy.
+    binding="$(ostree --repo="$repo" show "$tip" --print-metadata-key=ostree.ref-binding 2>/dev/null || true)"
+    if [[ "$binding" != \[* || "$binding" != *"'$rel'"* ]]; then
+      echo "Commit $tip for $rel has ref binding '${binding:-none}', expected an array containing '$rel'" >&2
+      failed=1
+    fi
   done < <(find "$repo/refs/heads" -type f)
+  # The other direction: a summary that advertises a ref which does not exist
+  # makes clients fail to update appstream.
+  while IFS= read -r rel; do
+    [[ -f "$repo/refs/heads/$rel" ]] && continue
+    case "$rel" in
+      app/*|runtime/*|appstream/*|appstream2/*)
+        echo "Summary advertises $rel, but no such ref exists" >&2
+        failed=1
+        ;;
+    esac
+  done < <(ostree --repo="$repo" summary -v 2>/dev/null | awk '/^\* /{print substr($0,3)}')
   if [[ $failed -ne 0 ]]; then
     echo "The repository is inconsistent and was not published." >&2
     return 1

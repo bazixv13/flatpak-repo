@@ -129,3 +129,8 @@ git-ignored.
   across repositories). Without it, releases arrive on the scheduled run.
 - Only the manifests whose tag moved are rebuilt, and a beta tag never touches
   the stable branch.
+- The `Verify published repo` workflow re-checks the published `gh-pages` branch
+  once a day: summary entries must match real refs, and every commit must carry
+  an array ref binding (a string binding is accepted by root but rejected by
+  flatpak's system helper, which is how `flatpak update --appstream` breaks
+  silently for system installations). A red run is the alert.

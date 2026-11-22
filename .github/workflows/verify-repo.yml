@@ -1,0 +1,62 @@
+name: Verify published repo
+
+# Checks what clients actually download, on a timer.
+#
+# Publishing already verifies its own output, but the failures that hurt are
+# invisible from a git clone: a summary that advertises a commit missing from
+# gh-pages, a ref with no matching summary entry, or commit metadata the
+# privileged appstream path rejects. All of them leave `flatpak install` and
+# `flatpak update --appstream` broken for everyone while the repository looks
+# fine. A red run here is the alert.
+
+on:
+  schedule:
+    # Once a day. The repository only changes when an app is published, and
+    # the publish job already runs the same checks.
+    - cron: "43 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Check gh-pages
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            flatpak ostree ca-certificates
+          flatpak --version
+          ostree --version | head -2
+
+      - name: Verify published repository
+        run: |
+          set -euo pipefail
+          published="$RUNNER_TEMP/published"
+          git clone --quiet --depth 1 --branch gh-pages \
+            "https://github.com/${GITHUB_REPOSITORY}.git" "$published"
+          source ./scripts/lib.sh
+
+          {
+            echo "### Published refs"
+            echo
+            echo '```'
+            find "$published/refs/heads" -type f | sort | while read -r ref; do
+              printf '%s = %s\n' "${ref#"$published/refs/heads/"}" "$(cat "$ref")"
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if ! verify_repo "$published"; then
+            echo "::error::The published repository is inconsistent; clients cannot update from it."
+            exit 1
+          fi
