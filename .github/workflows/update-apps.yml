@@ -125,6 +125,25 @@ jobs:
             echo "Triggered by the release of ${DISPATCH_TAG}."
           fi
 
+      - name: Lint manifests
+        if: steps.check.outputs.changed != '0' || inputs.force
+        run: |
+          set -euo pipefail
+          # Same check as the daily one, but before anything is built: a
+          # manifest that is about to be published gets looked at, not the one
+          # that was already live. See lint-exceptions.json for the findings
+          # that are by design in this repository.
+          for manifest in apps/*.json; do
+            case "$manifest" in
+              *cargo-sources.json) continue ;;
+            esac
+            echo ">> Linting $manifest"
+            docker run --rm -v "$PWD:/mnt" \
+              ghcr.io/flathub/flatpak-builder-lint:latest \
+              --exceptions --user-exceptions /mnt/lint-exceptions.json \
+              manifest "/mnt/$manifest"
+          done
+
       - name: Update, build and publish
         if: steps.check.outputs.changed != '0' || inputs.force
         run: |

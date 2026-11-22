@@ -19,8 +19,15 @@ pre-release tag (0.3.53-beta) instead of the newest release and is published
 to that app's beta branch, so stable users are never moved onto a beta.
 
     ./scripts/update_manifests.py [--check] [--only APP_ID]
+    ./scripts/update_manifests.py --verify-sources
 
 --check reports what would change without writing anything.
+
+--verify-sources downloads every pinned archive and compares its checksum with
+what the manifest records, exiting non-zero on a mismatch. GitHub regenerates
+`archive/refs/tags/<tag>.tar.gz` on the fly, so a tag that was rewritten (or a
+history rewritten behind it) silently stops matching the pin; without this the
+only symptom is a failed rebuild later.
 """
 
 from __future__ import annotations
@@ -215,6 +222,45 @@ def fetch_cargo_sources(dest: Path, repo: str, tag: str) -> bool:
     return True
 
 
+def pinned_archives(manifest: dict):
+    """Every archive source whose checksum the manifest promises."""
+    for module in manifest.get("modules", []):
+        for source in module.get("sources", []):
+            if not isinstance(source, dict) or source.get("type") != "archive":
+                continue
+            if source.get("url") and source.get("sha256"):
+                yield module.get("name", "?"), source
+
+
+def verify_sources(manifests: list[Path]) -> int:
+    """Check that every pinned archive still has the recorded bytes."""
+    failures = 0
+    for path in manifests:
+        manifest = json.loads(path.read_text())
+        print(f">> {path.name}")
+        for module_name, source in pinned_archives(manifest):
+            url = source["url"]
+            expected = source["sha256"]
+            actual = sha256_of(url)
+            if actual is None:
+                print(f"   ! {module_name}: could not fetch {url}", file=sys.stderr)
+                failures += 1
+            elif actual != expected:
+                print(
+                    f"   ! {module_name}: {url} is {actual}, manifest pins {expected}",
+                    file=sys.stderr,
+                )
+                failures += 1
+            else:
+                short = url.rsplit("/", 1)[-1]
+                print(f"   ok {module_name}: {short} {actual[:12]}")
+    if failures:
+        print(f">> {failures} pinned source(s) do not match upstream", file=sys.stderr)
+        return 1
+    print(">> Every pinned source matches upstream")
+    return 0
+
+
 def process(path: Path, check_only: bool) -> dict:
     manifest = json.loads(path.read_text())
     app_id = manifest.get("app-id", path.stem)
@@ -322,6 +368,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="report only, write nothing")
     parser.add_argument("--only", help="limit to one app id")
+    parser.add_argument(
+        "--verify-sources",
+        action="store_true",
+        help="check pinned archive checksums against upstream",
+    )
     args = parser.parse_args()
 
     manifests = sorted(
@@ -338,6 +389,9 @@ def main() -> int:
         if not manifests:
             print(f"No manifest for app id {args.only}", file=sys.stderr)
             return 1
+
+    if args.verify_sources:
+        return verify_sources(manifests)
 
     results = []
     for path in manifests:

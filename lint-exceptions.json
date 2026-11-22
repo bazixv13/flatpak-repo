@@ -1,0 +1,10 @@
+{
+    "io.github.bazixv13.Hideaway": [
+        "toplevel-unnecessary-branch"
+    ],
+    "io.github.localsend_adwaita.LocalSend": [
+        "toplevel-unnecessary-branch",
+        "appid-url-not-reachable",
+        "appid-filename-mismatch"
+    ]
+}

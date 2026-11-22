@@ -1,13 +1,13 @@
 name: Verify published repo
 
-# Checks what clients actually download, on a timer.
+# Checks the published remote, on a timer.
 #
 # Publishing already verifies its own output, but the failures that hurt are
 # invisible from a git clone: a summary that advertises a commit missing from
-# gh-pages, a ref with no matching summary entry, or commit metadata the
-# privileged appstream path rejects. All of them leave `flatpak install` and
-# `flatpak update --appstream` broken for everyone while the repository looks
-# fine. A red run here is the alert.
+# gh-pages, an unsigned ref, a ref binding flatpak's privileged appstream path
+# rejects, or a pinned archive whose checksum upstream no longer serves. All of
+# them leave `flatpak install` and `flatpak update --appstream` broken for
+# everyone while the repository looks fine. A red run here is the alert.
 
 on:
   schedule:
@@ -58,5 +58,59 @@ jobs:
 
           if ! verify_repo "$published"; then
             echo "::error::The published repository is inconsistent; clients cannot update from it."
+            exit 1
+          fi
+
+      - name: Verify one-click install files
+        run: |
+          set -euo pipefail
+          published="$RUNNER_TEMP/published"
+          missing=0
+          while read -r ref; do
+            IFS=/ read -r _ app_id _arch branch <<< "${ref#"$published/refs/heads/"}"
+            if [[ ! -s "$published/$app_id.$branch.flatpakref" ]]; then
+              echo "No .flatpakref for $app_id/$branch" >&2
+              missing=1
+            fi
+          done < <(find "$published/refs/heads/app" -type f | sort)
+          if [[ $missing -ne 0 ]]; then
+            echo "::error::An app has no one-click install file."
+            exit 1
+          fi
+          echo ">> Every app ref has a .flatpakref"
+
+      - name: Lint manifests
+        run: |
+          set -euo pipefail
+          # The linter ships in the org.flatpak.Builder flatpak and in this
+          # image; the image is a few megabytes where the flatpak is a runtime
+          # download. lint-exceptions.json records the findings that are by
+          # design here: the branch property is how the beta channel is routed
+          # (a Flathub repo has no need for it), and LocalSend's app id does not
+          # follow the reverse-DNS-of-a-GitHub-repo shape the checks assume.
+          for manifest in apps/*.json; do
+            case "$manifest" in
+              *cargo-sources.json) continue ;;
+            esac
+            echo ">> Linting $manifest"
+            docker run --rm -v "$PWD:/mnt" \
+              ghcr.io/flathub/flatpak-builder-lint:latest \
+              --exceptions --user-exceptions /mnt/lint-exceptions.json \
+              manifest "/mnt/$manifest"
+          done
+
+      - name: Verify pinned sources still match upstream
+        run: |
+          set -euo pipefail
+          if ! ./scripts/update_manifests.py --verify-sources; then
+            echo "::error::A pinned archive no longer matches its checksum; a rebuild will fail."
+            exit 1
+          fi
+
+      - name: Verify signing key validity
+        run: |
+          set -o pipefail
+          if ! ./scripts/check-key-expiry.sh repo-key.asc 30; then
+            echo "::error::The signing key is expired or expiring; clients will stop trusting the remote."
             exit 1
           fi

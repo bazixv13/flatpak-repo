@@ -18,6 +18,12 @@ Then install any app it provides:
 flatpak install bazixv13-apps io.github.bazixv13.Hideaway
 ```
 
+Every app also has a one-click install file at the site root,
+`<app-id>.<branch>.flatpakref`, which GNOME Software and Bazaar can open
+directly: it carries the URL and the key, so no terminal is involved. For
+example
+`https://bazixv13.github.io/flatpak-repo/io.github.localsend_adwaita.LocalSend.stable.flatpakref`.
+
 List what is available:
 
 ```bash
@@ -51,7 +57,11 @@ scripts/
   remove-app.sh        Remove an app from ./repo
   list-apps.sh         List apps in ./repo
   publish.sh           Push ./repo to gh-pages
+  make-flatpakrefs.sh  Write the one-click install files for the site root
+  update_manifests.py  Move manifests to the newest upstream tag
+  check-key-expiry.sh  Fail if the signing key is expired or expiring
 flatpakrepo            Remote descriptor served at the site root
+lint-exceptions.json   flatpak-builder-lint findings that are by design here
 index.html             Landing page with the add-remote instructions
 logo.svg               Repo icon referenced by flatpakrepo
 .nojekyll              Lets GitHub Pages serve files without index.html
@@ -105,6 +115,12 @@ git-ignored.
 
 ## Notes
 
+- The repo publishes **static deltas**, so an update downloads only what
+  changed instead of the whole app commit, and `build-update-repo --prune`
+  drops the appstream commits each publish replaces.
+- `flatpakrepo` names Flathub in `RuntimeRepo=`, so a user who never added
+  Flathub is prompted for `org.gnome.Platform` instead of being told the
+  runtime is missing.
 - The repo is **GPG-signed**. `flatpakrepo` embeds the public key as `GPGKey=`,
   so Flatpak adds the remote with verification ON. This matters: an unsigned
   remote is registered `no-gpg-verify`, and Flatpak then refuses to pull it as
@@ -130,7 +146,15 @@ git-ignored.
 - Only the manifests whose tag moved are rebuilt, and a beta tag never touches
   the stable branch.
 - The `Verify published repo` workflow re-checks the published `gh-pages` branch
-  once a day: summary entries must match real refs, and every commit must carry
-  an array ref binding (a string binding is accepted by root but rejected by
-  flatpak's system helper, which is how `flatpak update --appstream` breaks
-  silently for system installations). A red run is the alert.
+  once a day: summary entries must match real refs, every commit must be signed
+  and carry an array ref binding (a string binding is accepted by root but
+  rejected by flatpak's system helper, which is how `flatpak update --appstream`
+  breaks silently for system installations), every app ref must have its
+  `.flatpakref`, the pinned archive checksums must still match upstream (GitHub
+  regenerates tag tarballs, so a rewritten tag silently breaks the next build),
+  and the signing key must not be expired or expire within 30 days. A red run
+  is the alert. The same workflow lints the manifests with
+  `flatpak-builder-lint`; findings that are by design here — the `branch`
+  property is how the beta channel is routed, and LocalSend's app id does not
+  follow the reverse-DNS-of-a-GitHub-repo shape the checks assume — are listed
+  in `lint-exceptions.json`. `Update apps` lints before it builds.
