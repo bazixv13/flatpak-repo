@@ -88,6 +88,12 @@ created into the summary without storing the commit, so HTTP clients fail with
 refresh. `verify_repo` compares every ref with the summary and aborts the
 publish instead of shipping that state.
 
+The `rsync` into `gh-pages` runs with `--checksum`. OSTree stamps a ref file
+with the timestamp of its commit, and signing keeps the old commit date, so a
+re-signed `appstream` ref has the same size and mtime as the published one;
+the default size+mtime check would skip it and publish a summary that
+advertises a commit the ref does not point at.
+
 The remote name is **`bazixv13-apps`**:
 
 ```bash

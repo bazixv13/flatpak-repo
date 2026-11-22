@@ -29,7 +29,12 @@ echo ">> Cloning gh-pages ..."
 git clone --quiet --branch gh-pages --depth 1 "$(origin_url)" "$TMP/pages"
 
 echo ">> Syncing OSTree objects ..."
-rsync -a --delete \
+# --checksum, not the default size+mtime check: ostree writes a ref with the
+# timestamp of its commit, and sign_appstream keeps the old commit date, so a
+# re-signed appstream ref is the same size and mtime as the one already
+# published and rsync would silently skip it. The summary would then advertise
+# a commit the published ref does not point at, which breaks every HTTP client.
+rsync -a --checksum --delete \
   --exclude '.git' \
   --exclude 'flatpakrepo' \
   --exclude '.nojekyll' \

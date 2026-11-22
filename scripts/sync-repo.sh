@@ -14,7 +14,10 @@ echo ">> Fetching published repo from gh-pages ..."
 git clone --quiet --branch gh-pages --depth 1 "$(origin_url)" "$TMP/pages"
 
 mkdir -p "$REPO_DIR"
-rsync -a --delete \
+# --checksum: ref files keep the timestamp of their commit, so a ref that was
+# re-signed has the same size and mtime as the published one and the default
+# size+mtime check would leave the stale ref in place.
+rsync -a --checksum --delete \
   --exclude '.git' \
   --exclude 'flatpakrepo' \
   --exclude '.nojekyll' \
