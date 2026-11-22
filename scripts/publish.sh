@@ -17,6 +17,11 @@ trap 'rm -rf "$TMP"' EXIT
 echo ">> Signing repository before publish ..."
 sign_repo "$REPO_DIR"
 
+# A summary that advertises a commit which was never written installs fine from
+# a file: URL but breaks every HTTP client, so it must not reach gh-pages.
+echo ">> Verifying repository ..."
+verify_repo "$REPO_DIR"
+
 echo ">> Regenerating flatpakrepo ..."
 "$(dirname "${BASH_SOURCE[0]}")/make-flatpakrepo.sh"
 

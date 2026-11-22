@@ -91,6 +91,71 @@ sign_appstream() {
   done
 }
 
+# Rewrite the summary from the refs that exist now, and sign it.
+#
+# `flatpak build-update-repo --no-update-appstream` is what this wants to be,
+# but flatpak older than about 1.16 still writes the appstream commit it would
+# have created into the summary while not writing the commit itself, so the
+# summary advertises a commit that is not in the repository. Clients then fail
+# with "Commit for 'appstream2/x86_64' has no ref binding", and Bazaar or GNOME
+# Software cannot refresh their app list. ostree rebuilds the summary from the
+# real refs, phantom entries and all.
+#
+# The summary index describes the previous summary, so it is removed rather
+# than left to disagree with the new one; clients fall back to the full summary
+# when it is missing.
+resign_summary() {
+  local repo="${1:-$REPO_DIR}"
+  require_gpg_key
+  # ostree fails to rebuild the summary when this directory is absent.
+  mkdir -p "$repo/refs/remotes"
+  ostree --repo="$repo" summary -u \
+    --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
+    --add-metadata="xa.title='bazixv13 Apps'" \
+    --add-metadata="xa.comment='Flatpak repository for bazixv13 apps'"
+  rm -f "$repo/summary.idx" "$repo/summary.idx.sig"
+}
+
+# Print the commit the summary advertises for a ref, if it advertises one.
+summary_commit_for() {
+  local repo="$1" ref="$2"
+  ostree --repo="$repo" summary -v 2>/dev/null \
+    | awk -v want="$ref" '
+        /^\* / { current = substr($0, 3); next }
+        current == want && /^[[:space:]]+[0-9a-f]+$/ {
+          gsub(/[[:space:]]/, ""); print; exit
+        }
+      '
+}
+
+# Refuse to publish a repository whose summary and refs disagree.
+#
+# That mismatch is invisible locally: the refs are fine, so installs from a
+# file: URL work, while every HTTP client (and the app stores) fail on the
+# summary. Check it here so a broken publish fails the run instead of the
+# users' updates.
+verify_repo() {
+  local repo="${1:-$REPO_DIR}" ref rel tip advertised failed=0
+  while IFS= read -r ref; do
+    rel="${ref#"$repo"/refs/heads/}"
+    tip="$(cat "$ref")"
+    advertised="$(summary_commit_for "$repo" "$rel")"
+    if [[ "$advertised" != "$tip" ]]; then
+      echo "Summary advertises '${advertised:-nothing}' for $rel, ref is $tip" >&2
+      failed=1
+    fi
+    if [[ ! -f "$repo/objects/${tip:0:2}/${tip:2}.commit" ]]; then
+      echo "Commit $tip for $rel is missing from the repository" >&2
+      failed=1
+    fi
+  done < <(find "$repo/refs/heads" -type f)
+  if [[ $failed -ne 0 ]]; then
+    echo "The repository is inconsistent and was not published." >&2
+    return 1
+  fi
+  echo ">> Summary and refs agree."
+}
+
 # Sign every app commit in $REPO_DIR, the appstream branches, and the summary.
 #
 # Order matters: build-update-repo regenerates the appstream branch, so the
@@ -112,10 +177,7 @@ sign_repo() {
     --title="bazixv13 Apps" --comment="Flatpak repository for bazixv13's apps" "$repo"
   sign_appstream "$repo"
   # Refresh the summary so it advertises the signed appstream commits. This
-  # second call must NOT regenerate the appstream branch, or it would discard
-  # the signatures applied above. --no-update-appstream keeps the branches as
-  # they are and only rewrites summary/summary.sig.
-  flatpak build-update-repo --no-update-appstream \
-    --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
-    --title="bazixv13 Apps" --comment="Flatpak repository for bazixv13's apps" "$repo"
+  # must NOT regenerate the appstream branch, or it would discard the
+  # signatures applied above.
+  resign_summary "$repo"
 }

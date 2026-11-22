@@ -74,10 +74,19 @@ until `ostree --repo=repo prune --refs-only`.
 
 ## How publishing works
 
-`publish.sh` clones `gh-pages`, rsyncs the local `repo/` over it (preserving
+`publish.sh` signs the repository, checks that the summary agrees with the
+refs, clones `gh-pages`, rsyncs the local `repo/` over it (preserving
 `flatpakrepo`, `.nojekyll`, `index.html` and `logo.svg`), commits, and pushes.
 GitHub Pages then serves the new repo at
 `https://bazixv13.github.io/flatpak-repo/`.
+
+The summary is rewritten with `ostree summary -u` after the appstream commits
+are signed, never with `flatpak build-update-repo --no-update-appstream`: on
+flatpak older than about 1.16 that writes the appstream commit it would have
+created into the summary without storing the commit, so HTTP clients fail with
+`Commit for 'appstream2/x86_64' has no ref binding` and the app stores cannot
+refresh. `verify_repo` compares every ref with the summary and aborts the
+publish instead of shipping that state.
 
 The remote name is **`bazixv13-apps`**:
 
@@ -97,6 +106,11 @@ flatpak remote-add --if-not-exists --from bazixv13-apps \
   comes first, the flatpakrepo URL second.
 - `remote-ls` is empty: confirm `summary` exists on `gh-pages` and the Pages
   build succeeded (`gh api /repos/bazixv13/flatpak-repo/pages`).
+- `Error updating appstream2: Commit for 'appstream2/x86_64' has no ref
+  binding` / `Refspec ... not found`: the published summary advertises a commit
+  that is not in the repo. `./scripts/sync-repo.sh && ./scripts/publish.sh`
+  rewrites and resigns the summary from the real refs and republishes;
+  `verify_repo` now catches the mismatch before anything is pushed.
 - After a repo rename the Pages URL changes; old `flatpakrepo` URLs 404 until
   remotes are re-added.
 - Build failures usually mean the SDK/runtime version in the manifest is not on
