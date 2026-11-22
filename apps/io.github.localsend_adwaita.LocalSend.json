@@ -61,7 +61,7 @@
                 {
                     "type": "archive",
                     "url": "https://github.com/bazixv13/localsend-adwaita/archive/refs/tags/v0.3.50.tar.gz",
-                    "sha256": "020bcbdb675767d89dc2e3f6f288dc74dadc6792b35a04bfaad5c0198ab9eda5",
+                    "sha256": "00890662f2b0046a343ba28e8b8640c87513d30a3301a11c26f7c6ea857494f9",
                     "strip-components": 1
                 }
             ]
