@@ -164,6 +164,15 @@ verify_repo() {
       echo "Commit $tip for $rel has ref binding '${binding:-none}', expected an array containing '$rel'" >&2
       failed=1
     fi
+    # An unsigned commit is accepted by the server and then rejected by every
+    # client that verifies signatures, which is all of them. Signatures are
+    # detached metadata, so they show up as a "Found N signatures" header
+    # rather than as a metadata key.
+    if ! LC_ALL=C ostree --repo="$repo" show "$tip" 2>/dev/null |
+      grep -q '^Found [1-9][0-9]* signature'; then
+      echo "Commit $tip for $rel is not signed" >&2
+      failed=1
+    fi
   done < <(find "$repo/refs/heads" -type f)
   # The other direction: a summary that advertises a ref which does not exist
   # makes clients fail to update appstream.
@@ -191,16 +200,20 @@ verify_repo() {
 sign_repo() {
   local repo="${1:-$REPO_DIR}"
   require_gpg_key
-  if [[ -d "$repo/refs/heads/app" ]]; then
-    while IFS= read -r ref; do
-      local rel="${ref#"$repo"/refs/heads/}"
-      local id="${rel#app/}"; id="${id%%/*}"
-      local branch="${rel##*/}"
-      flatpak build-sign --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
-        "$repo" "$id" "$branch"
-    done < <(find "$repo/refs/heads/app" -type f)
-  fi
+  # Both signing and delta generation list every ref including refs/remotes,
+  # and the published repository has no such directory, so they would abort
+  # with "opendir(refs/remotes): No such file or directory" on a valid repo.
+  mkdir -p "$repo/refs/remotes"
+  # No ID: sign every ref in the repository. Signing one app at a time left
+  # the Debug runtime refs unsigned, and a user pulling one of those gets a
+  # verification failure.
+  flatpak build-sign --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" "$repo"
+  # --generate-static-deltas makes an update download only the objects that
+  # changed; without it every update re-downloads the whole app commit.
+  # --prune drops objects nothing refers to any more, mostly the appstream
+  # commits replaced on each publish, which otherwise grow the tree forever.
   flatpak build-update-repo --gpg-sign="$GPG_KEY_ID" --gpg-homedir="$GPG_HOMEDIR" \
+    --generate-static-deltas --prune \
     --title="bazixv13 Apps" --comment="Flatpak repository for bazixv13's apps" "$repo"
   sign_appstream "$repo"
   # Refresh the summary so it advertises the signed appstream commits. This

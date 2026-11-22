@@ -23,6 +23,7 @@ rsync -a --checksum --delete \
   --exclude '.nojekyll' \
   --exclude 'index.html' \
   --exclude 'logo.svg' \
+  --exclude '*.flatpakref' \
   "$TMP/pages/" "$REPO_DIR/"
 
 echo ">> Local repo is up to date: $REPO_DIR"

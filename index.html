@@ -58,11 +58,19 @@
     <pre><code>flatpak remote-add --if-not-exists --from bazixv13-apps https://bazixv13.github.io/flatpak-repo/flatpakrepo</code></pre>
 
     <h2>Install an app</h2>
+    <p>Open one of these with GNOME Software or Bazaar, or download it and run
+      <code>flatpak install</code> on it — it adds the remote and the key for you.</p>
+    <ul>
+      <li><strong>Hideaway</strong> — <a href="io.github.bazixv13.Hideaway.master.flatpakref">install</a></li>
+      <li><strong>LocalSend</strong> (stable) — <a href="io.github.localsend_adwaita.LocalSend.stable.flatpakref">install</a></li>
+      <li><strong>LocalSend</strong> (beta) — <a href="io.github.localsend_adwaita.LocalSend.beta.flatpakref">install</a></li>
+    </ul>
     <pre><code>flatpak install bazixv13-apps io.github.bazixv13.Hideaway</code></pre>
 
     <h2>What's available</h2>
     <ul>
       <li><strong>Hideaway</strong> — <code>io.github.bazixv13.Hideaway</code> (branch <code>master</code>)</li>
+      <li><strong>LocalSend</strong> — <code>io.github.localsend_adwaita.LocalSend</code> (branches <code>stable</code>, <code>beta</code>)</li>
     </ul>
     <p class="hint">Full list: <code>flatpak remote-ls bazixv13-apps</code></p>
 

@@ -40,12 +40,17 @@ rsync -a --checksum --delete \
   --exclude '.nojekyll' \
   --exclude 'index.html' \
   --exclude 'logo.svg' \
+  --exclude '*.flatpakref' \
   "$REPO_DIR/" "$TMP/pages/"
 
 # Keep the site-level files at the root.
 for site_file in flatpakrepo .nojekyll index.html logo.svg repo-key.asc; do
   [[ -e "$ROOT/$site_file" ]] && cp "$ROOT/$site_file" "$TMP/pages/$site_file"
 done
+
+# One-click install links, derived from the refs that were just published.
+echo ">> Writing .flatpakref files ..."
+"$(dirname "${BASH_SOURCE[0]}")/make-flatpakrefs.sh" "$TMP/pages"
 
 cd "$TMP/pages"
 git add -A
