@@ -47,9 +47,11 @@ if ! ./scripts/update_manifests.py $([[ $CHECK_ONLY -eq 1 ]] && echo --check) | 
   exit 1
 fi
 
-# Which apps actually moved, one app id per line.
+# The manifests that actually moved, one file name per line. Keyed by file
+# rather than app id: an app can have two manifests (stable and beta), and only
+# the channel that moved should be rebuilt.
 CHANGED="$(sed -n '/^---RESULT---$/,$p' "$UPDATE_LOG" | tail -n +2 \
-  | python3 -c 'import json,sys; print("\n".join(r["app"] for r in json.load(sys.stdin) if r["status"]=="updated"))')"
+  | python3 -c 'import json,sys; print("\n".join(r["manifest"] for r in json.load(sys.stdin) if r["status"]=="updated"))')"
 
 if [[ -z "$CHANGED" ]]; then
   if [[ $FORCE -eq 0 ]]; then
@@ -64,7 +66,7 @@ import json, pathlib
 for path in sorted(pathlib.Path("apps").glob("*.json")):
     if path.name == "cargo-sources.json":
         continue
-    print(json.loads(path.read_text())["app-id"])
+    print(path.name)
 ')"
 fi
 
@@ -79,11 +81,11 @@ if [[ $DO_BUILD -eq 1 ]]; then
   # already live, and existing ones keep their history.
   ./scripts/sync-repo.sh
 
-  while IFS= read -r app_id; do
-    [[ -n "$app_id" ]] || continue
-    manifest="$(grep -l "\"$app_id\"" apps/*.json | head -n1)"
-    [[ -n "$manifest" ]] || { echo "No manifest for $app_id" >&2; exit 1; }
-    echo ">> Rebuilding $app_id ..."
+  while IFS= read -r manifest_name; do
+    [[ -n "$manifest_name" ]] || continue
+    manifest="apps/$manifest_name"
+    [[ -f "$manifest" ]] || { echo "No manifest named $manifest_name" >&2; exit 1; }
+    echo ">> Rebuilding $manifest ..."
     ./scripts/add-app.sh "$manifest"
   done <<< "$CHANGED"
 

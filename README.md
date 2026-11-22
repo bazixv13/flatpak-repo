@@ -24,6 +24,18 @@ List what is available:
 flatpak remote-ls bazixv13-apps
 ```
 
+### Beta builds
+
+Apps that ship pre-releases also publish a `beta` branch. It is a separate
+branch, so installing it never moves stable users onto a beta:
+
+```bash
+flatpak install bazixv13-apps io.github.localsend_adwaita.LocalSend//beta
+```
+
+Anything published to `stable` (or the app's own branch) only follows tags
+like `v0.3.50`; the beta channel follows tags like `v0.3.53-beta`.
+
 ## Repository layout
 
 | Branch     | Contents |
@@ -32,7 +44,7 @@ flatpak remote-ls bazixv13-apps
 | `gh-pages` | The published OSTree repo served by GitHub Pages |
 
 ```
-apps/                  Flatpak manifests, one file per app
+apps/                  Flatpak manifests, one file per app and channel
 scripts/
   sync-repo.sh         Download the published repo into ./repo
   add-app.sh           Build a manifest and export it into ./repo
@@ -52,7 +64,14 @@ git-ignored.
 
 1. Put the Flatpak manifest in `apps/<app-id>.json`.
    - `app-id` is required.
-   - `branch` is optional (defaults to `master`).
+   - `branch` is optional (defaults to `master`). A manifest with
+     `"branch": "beta"` is the test channel: it follows pre-release tags
+     (`0.3.53-beta`) instead of the newest release. Name its file
+     `apps/<app-id>.beta.json` so both channels can coexist.
+   - Files taken from the app's own tag tree (for example
+     `raw.githubusercontent.com/<owner>/<repo>/<tag>/flatpak/cargo-sources.json`)
+     are moved to the new tag automatically, so each release builds with its
+     own dependency list.
 2. Sync the current published state, build and export:
 
    ```bash
@@ -77,6 +96,8 @@ git-ignored.
 ## Current apps
 
 - `io.github.bazixv13.Hideaway` — Hideaway, manifest in `apps/`.
+- `io.github.localsend_adwaita.LocalSend` — LocalSend, `stable` from
+  `apps/*.json` and `beta` from `apps/*.beta.json`.
 - `com.github.kali.Hideaway` — legacy app id still present in the published
   repo. Kept on purpose; remove it only if asked.
 
@@ -99,3 +120,10 @@ git-ignored.
   `.nojekyll` file is required because Jekyll would otherwise hide dotfiles.
 - The site root serves the landing page (`index.html`); the `flatpakrepo` file
   is what `flatpak remote-add --from` downloads.
+- Updates are applied by the `Update apps` workflow: every six hours, on a
+  `repository_dispatch` of type `upstream-release` from an app repo, or by hand.
+  A dispatch needs a token that can write to this repository, stored as
+  `FLATPAK_REPO_TOKEN` in the app repo's secrets (`GITHUB_TOKEN` cannot reach
+  across repositories). Without it, releases arrive on the scheduled run.
+- Only the manifests whose tag moved are rebuilt, and a beta tag never touches
+  the stable branch.

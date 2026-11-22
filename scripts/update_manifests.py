@@ -14,6 +14,10 @@ only ever point at bytes that were really fetched and hashed.
 Exit status is 0 whether or not anything changed; the machine-readable
 summary on stdout says what happened, so the caller can decide to rebuild.
 
+A manifest with "branch": "beta" is a test channel: it follows the newest
+pre-release tag (0.3.53-beta) instead of the newest release and is published
+to that app's beta branch, so stable users are never moved onto a beta.
+
     ./scripts/update_manifests.py [--check] [--only APP_ID]
 
 --check reports what would change without writing anything.
@@ -42,18 +46,29 @@ ARCHIVE_RE = re.compile(
 # Tags we are willing to treat as releases: v1.2.3, 1.2.3, v1.2, v1
 TAG_RE = re.compile(r"^v?\d+(?:\.\d+)*$")
 
+# Tags for the beta channel: the same shapes with a suffix, 0.3.53-beta.
+PRERELEASE_RE = re.compile(r"^v?\d+(?:\.\d+)*-[0-9A-Za-z][0-9A-Za-z.]*$")
+
+# githubusercontent.com/<owner>/<repo>/<tag>/<path> - a file living in the
+# app's own tag tree, such as the cargo sources generated for that release.
+RAW_FILE_RE = re.compile(
+    r"^https://raw\.githubusercontent\.com/(?P<repo>[^/]+/[^/]+)/(?P<tag>[^/]+)/(?P<path>.+)$"
+)
+
 
 def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
 
 
-def version_key(tag: str) -> tuple[int, ...]:
-    """Sort key that orders 0.3.9 before 0.3.10 and 1.4 before 1.4.1."""
-    parts = tag.lstrip("v").split(".")
-    return tuple(int(part) for part in parts)
+def version_key(tag: str) -> tuple:
+    """Sort key that orders 0.3.9 before 0.3.10, 1.4 before 1.4.1, and a
+    pre-release before the release it leads up to (0.3.53-beta < 0.3.53)."""
+    numbers, _, suffix = tag.lstrip("v").partition("-")
+    parts = tuple(int(part) for part in numbers.split("."))
+    return (parts, 0 if suffix else 1, suffix)
 
 
-def latest_tag(repo: str) -> str | None:
+def latest_tag(repo: str, prerelease: bool = False) -> str | None:
     """Newest release-like tag in a GitHub repository.
 
     Uses `git ls-remote` rather than the REST API: it needs no token, has no
@@ -73,7 +88,7 @@ def latest_tag(repo: str) -> str | None:
         tag = ref[len("refs/tags/"):]
         if tag.endswith("^{}"):  # peeled annotated tag, same tag
             tag = tag[:-3]
-        if TAG_RE.match(tag):
+        if PRERELEASE_RE.match(tag) if prerelease else TAG_RE.match(tag):
             tags.append(tag)
 
     if not tags:
@@ -162,9 +177,29 @@ def find_archive_source(manifest: dict) -> dict | None:
     return found[-1] if found else None
 
 
+def sibling_file_sources(manifest: dict, repo: str) -> list[dict]:
+    """File sources that live in the app's own tag tree, e.g. cargo sources.
+
+    They are pinned to the same tag as the app source, so they have to move
+    with it or the build would use another release's dependency list.
+    """
+    found = []
+    for module in manifest.get("modules", []):
+        for source in module.get("sources", []):
+            if not isinstance(source, dict) or source.get("type") != "file":
+                continue
+            match = RAW_FILE_RE.match(source.get("url", ""))
+            if match and match.group("repo") == repo:
+                found.append(source)
+    return found
+
+
 def process(path: Path, check_only: bool) -> dict:
     manifest = json.loads(path.read_text())
     app_id = manifest.get("app-id", path.stem)
+    # A beta manifest is the same app on the beta branch, following tags like
+    # 0.3.53-beta rather than the newest stable release.
+    prerelease = manifest.get("branch") == "beta"
 
     source = find_archive_source(manifest)
     is_git = False
@@ -172,7 +207,12 @@ def process(path: Path, check_only: bool) -> dict:
         source = find_git_source(manifest)
         is_git = source is not None
     if source is None:
-        return {"app": app_id, "status": "skipped", "reason": "no GitHub tag source"}
+        return {
+            "app": app_id,
+            "manifest": path.name,
+            "status": "skipped",
+            "reason": "no GitHub tag source",
+        }
 
     if is_git:
         match = GIT_SOURCE_RE.match(source["url"])
@@ -183,13 +223,20 @@ def process(path: Path, check_only: bool) -> dict:
         repo = match.group("repo")
         current_tag = match.group("tag")
 
-    newest = latest_tag(repo)
+    newest = latest_tag(repo, prerelease=prerelease)
     if newest is None:
-        return {"app": app_id, "status": "skipped", "reason": f"no release tags in {repo}"}
+        channel = "pre-release " if prerelease else ""
+        return {
+            "app": app_id,
+            "manifest": path.name,
+            "status": "skipped",
+            "reason": f"no {channel}tags in {repo}",
+        }
 
     if version_key(newest) <= version_key(current_tag):
         return {
             "app": app_id,
+            "manifest": path.name,
             "status": "current",
             "tag": current_tag,
             "repo": repo,
@@ -199,6 +246,7 @@ def process(path: Path, check_only: bool) -> dict:
     if check_only:
         return {
             "app": app_id,
+            "manifest": path.name,
             "status": "outdated",
             "from": current_tag,
             "to": newest,
@@ -208,35 +256,46 @@ def process(path: Path, check_only: bool) -> dict:
     if is_git:
         # A git source is pinned by tag only; flatpak resolves the commit.
         source["tag"] = newest
-        path.write_text(json.dumps(manifest, indent=4) + "\n")
-        return {
-            "app": app_id,
-            "status": "updated",
-            "from": current_tag,
-            "to": newest,
-            "repo": repo,
-        }
+    else:
+        digest = sha256_of(new_url)
+        if digest is None:
+            return {
+                "app": app_id,
+                "manifest": path.name,
+                "status": "skipped",
+                "reason": f"could not hash {newest}",
+                "repo": repo,
+            }
+        source["url"] = new_url
+        source["sha256"] = digest
 
-    digest = sha256_of(new_url)
-    if digest is None:
-        return {
-            "app": app_id,
-            "status": "skipped",
-            "reason": f"could not hash {newest}",
-            "repo": repo,
-        }
+    # Files taken from the same tag tree have to move to the new tag too.
+    for sibling in sibling_file_sources(manifest, repo):
+        match = RAW_FILE_RE.match(sibling["url"])
+        sibling_url = (
+            f"https://raw.githubusercontent.com/{repo}/{newest}/{match.group('path')}"
+        )
+        sibling_digest = sha256_of(sibling_url)
+        if sibling_digest is None:
+            return {
+                "app": app_id,
+                "manifest": path.name,
+                "status": "skipped",
+                "reason": f"could not hash {sibling_url}",
+                "repo": repo,
+            }
+        sibling["url"] = sibling_url
+        sibling["sha256"] = sibling_digest
 
-    source["url"] = new_url
-    source["sha256"] = digest
     path.write_text(json.dumps(manifest, indent=4) + "\n")
 
     return {
         "app": app_id,
+        "manifest": path.name,
         "status": "updated",
         "from": current_tag,
         "to": newest,
         "repo": repo,
-        "sha256": digest,
     }
 
 
@@ -255,7 +314,7 @@ def main() -> int:
         manifests = [
             path
             for path in manifests
-            if json.loads(path.read_text()).get("app-id") == args.only
+            if args.only in (path.stem, json.loads(path.read_text()).get("app-id"))
         ]
         if not manifests:
             print(f"No manifest for app id {args.only}", file=sys.stderr)

@@ -2,10 +2,16 @@ name: Update apps
 
 # Keeps the published remote in step with each app's newest upstream release.
 #
-# Runs on a schedule, and can be started by hand. It only does work when an
-# upstream tag has actually moved, so the common case is a fast no-op.
+# Runs on a schedule, when an app repo asks for an update right after a
+# release, and can be started by hand. It only does work when an upstream tag
+# has actually moved, so the common case is a fast no-op.
 
 on:
+  repository_dispatch:
+    # An app repo sends this after publishing a release, so a new version is
+    # usually installable within a minute instead of within six hours. The
+    # schedule below stays as the catch-all for a missed dispatch.
+    types: [upstream-release]
   schedule:
     # Every six hours. Upstream releases are not urgent, and a slower cadence
     # keeps the runner minutes and the gh-pages commit history small.
@@ -106,12 +112,18 @@ jobs:
 
       - name: Check for upstream releases
         id: check
+        env:
+          # Set by the dispatching repo; only used to label the log.
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
         run: |
           ./scripts/update_manifests.py --check | tee /tmp/check.log
           changed="$(sed -n '/^---RESULT---$/,$p' /tmp/check.log | tail -n +2 \
             | python3 -c 'import json,sys; print(len([r for r in json.load(sys.stdin) if r["status"]=="outdated"]))')"
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
           echo "Upstream releases pending: $changed"
+          if [[ -n "${DISPATCH_TAG:-}" ]]; then
+            echo "Triggered by the release of ${DISPATCH_TAG}."
+          fi
 
       - name: Update, build and publish
         if: steps.check.outputs.changed != '0' || inputs.force
