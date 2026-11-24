@@ -140,9 +140,21 @@ git-ignored.
   is what `flatpak remote-add --from` downloads.
 - Updates are applied by the `Update apps` workflow: every six hours, on a
   `repository_dispatch` of type `upstream-release` from an app repo, or by hand.
-  A dispatch needs a token that can write to this repository, stored as
+  Both app repos send one on every `v*` tag: `bazixv13/localsend-adwaita`
+  (`build.yml`, after it uploads the release) and `bazixv13/hideaway`
+  (`dispatch-flatpak.yml`). Only the payload's `tag` is used, and only to label
+  the run; which manifests need rebuilding is decided by re-reading upstream
+  tags with `git ls-remote`, so a dispatch cannot pin a bogus version.
+- That dispatch needs a token which can write to this repository, stored as
   `FLATPAK_REPO_TOKEN` in the app repo's secrets (`GITHUB_TOKEN` cannot reach
-  across repositories). Without it, releases arrive on the scheduled run.
+  across repositories): a classic token with `repo`, or a fine-grained token
+  with *Contents: read and write* here. What a missing or revoked token breaks
+  differs by app repo, by design: LocalSend logs
+  `FLATPAK_REPO_TOKEN is not set; ...` and exits 0, so the release still reaches
+  users on the next scheduled run, up to six hours late; Hideaway fails the
+  job, so the delay is a red run instead of a release that looks published. No
+  tag is lost either way — the scheduled run re-reads upstream tags — but until
+  that run, nothing here knows the release happened.
 - Only the manifests whose tag moved are rebuilt, and a beta tag never touches
   the stable branch.
 - The `Verify published repo` workflow re-checks the published `gh-pages` branch
