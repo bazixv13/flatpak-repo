@@ -60,8 +60,8 @@
                 "io.github.localsend_adwaita.LocalSend.cargo-sources.json",
                 {
                     "type": "archive",
-                    "url": "https://github.com/bazixv13/localsend-adwaita/archive/refs/tags/v0.3.50.tar.gz",
-                    "sha256": "00890662f2b0046a343ba28e8b8640c87513d30a3301a11c26f7c6ea857494f9",
+                    "url": "https://github.com/bazixv13/localsend-adwaita/archive/refs/tags/v0.3.53.tar.gz",
+                    "sha256": "248a562349a4368df119df3f5122a8ce37cce21cc69039f7cccf9c41fc083e8b",
                     "strip-components": 1
                 }
             ]
